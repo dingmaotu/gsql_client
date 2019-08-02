@@ -349,6 +349,9 @@ class Client(object):
         content = self.load_file_recursively(path)
         return self._command_interactive(self.file_url, content)
 
+    def file_direct(self, content):
+        return self._command_interactive(self.file_url, content)
+
     def version(self):
         return self._command_interactive(self.version_url, "version")
 
