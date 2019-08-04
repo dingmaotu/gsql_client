@@ -96,38 +96,38 @@ class Client(object):
         """
         Create a client from remote server ip, username, and password
         """
-        self.logger = logging.getLogger(__name__)
-        self.server_ip = server_ip
-        self.username = username
-        self.password = password
+        self._logger = logging.getLogger("gsql_client.Client")
+        self._server_ip = server_ip
+        self._username = username
+        self._password = password
 
         if cacert and HAS_SSL:
-            self.context = ssl.SSLContext(ssl.PROTOCOL_SSLv23)
-            self.context.check_hostname = False
-            self.context.verify_mode = ssl.CERT_REQUIRED
-            self.context.load_verify_locations(cacert)
-            self.protocol = "https"
+            self._context = ssl.SSLContext(ssl.PROTOCOL_SSLv23)
+            self._context.check_hostname = False
+            self._context.verify_mode = ssl.CERT_REQUIRED
+            self._context.load_verify_locations(cacert)
+            self._protocol = "https"
         else:
-            self.context = None
-            self.protocol = "http"
+            self._context = None
+            self._protocol = "http"
 
         self.base64_credential = base64.b64encode(
-            "{0}:{1}".format(self.username, self.password).encode("utf-8")).decode("utf-8")
+            "{0}:{1}".format(self._username, self._password).encode("utf-8")).decode("utf-8")
 
         self.is_local = server_ip.startswith("127.0.0.1") or server_ip.startswith("localhost")
 
         if self.is_local:
             if ":" not in server_ip:
                 port = get_option("gsql.server.private_port", "8123")
-                self.base_url = "{0}://{1}:{2}/gsql/".format(self.protocol, server_ip, port)
+                self.base_url = "{0}://{1}:{2}/gsql/".format(self._protocol, server_ip, port)
             else:
-                self.base_url = "{0}://{1}/gsql".format(self.protocol, server_ip)
+                self.base_url = "{0}://{1}/gsql".format(self._protocol, server_ip)
 
         else:
             if ":" not in server_ip:
-                self.base_url = "{0}://{1}:{2}/gsqlserver/gsql/".format(self.protocol, server_ip, "14240")
+                self.base_url = "{0}://{1}:{2}/gsqlserver/gsql/".format(self._protocol, server_ip, "14240")
             else:
-                self.base_url = "{0}://{1}/gsql/gsqlserver/gsql/".format(self.protocol, server_ip)
+                self.base_url = "{0}://{1}/gsql/gsqlserver/gsql/".format(self._protocol, server_ip)
 
         # check not malformed url
 
@@ -139,9 +139,9 @@ class Client(object):
 
         self.authorization = 'Basic {0}'.format(self.base64_credential)
 
-        self.logger.debug("base url: {0}".format(self.base_url))
-        self.logger.debug("User: {0}:{1}".format(self.username, self.password))
-        self.logger.debug("User Encoded: {0}".format(self.base64_credential))
+        self._logger.debug("base url: {0}".format(self.base_url))
+        self._logger.debug("User: {0}:{1}".format(self._username, self._password))
+        self._logger.debug("User Encoded: {0}".format(self.base64_credential))
 
     def _initialize_url(self):
         self.command_url = self.base_url + "command"
@@ -197,11 +197,11 @@ class Client(object):
 
     def _read_file(self, file_path, loaded):
         if not file_path or not isfile(file_path):
-            self.logger.warn("File \"" + file_path + "\" does not exist!")
+            self._logger.warn("File \"" + file_path + "\" does not exist!")
             return ""
 
         if file_path in loaded:
-            self.logger.error("There is an endless loop by using @" + file_path + " cmd recursively.")
+            self._logger.error("There is an endless loop by using @" + file_path + " cmd recursively.")
             raise RecursiveIncludeException(file_path)
         else:
             loaded.add(file_path)
@@ -225,18 +225,18 @@ class Client(object):
             response = urlopen(r)
             ret_code = response.getcode()
             if ret_code == 401:
-                self.logger.error("Authentication failed.")
+                self._logger.error("Authentication failed.")
                 return None
             if ret_code != 200:
                 error_info = "Connection Error.\nResponse Code : " + ret_code + "\n" + urlencode(content) + "\n"
-                self.logger.error(error_info)
+                self._logger.error(error_info)
                 return None
             content = response.read()
             return content.decode("utf-8")
         except URLError:
-            self.logger.error(MSG_CONNECTION_REFUSED)
+            self._logger.error(MSG_CONNECTION_REFUSED)
         except Exception:
-            self.logger.exception("error when connecting to gsql server")
+            self._logger.exception("error when connecting to gsql server")
         finally:
             if response:
                 response.close()
@@ -249,11 +249,11 @@ class Client(object):
             response = urlopen(r)
             ret_code = response.getcode()
             if ret_code == 401:
-                self.logger.error("Authentication failed.")
+                self._logger.error("Authentication failed.")
         except URLError:
-            self.logger.error(MSG_CONNECTION_REFUSED)
+            self._logger.error(MSG_CONNECTION_REFUSED)
         except Exception:
-            self.logger.exception("error when connecting to gsql server")
+            self._logger.exception("error when connecting to gsql server")
         finally:
             if response:
                 response.close()
@@ -269,11 +269,11 @@ class Client(object):
             response = urlopen(r)
             ret_code = response.getcode()
             if ret_code == 401:
-                self.logger.error("Authentication failed.")
+                self._logger.error("Authentication failed.")
                 return None
             if ret_code != 200:
                 error_info = "Connection Error.\nResponse Code : " + ret_code + "\n" + urlencode(content) + "\n"
-                self.logger.error(error_info)
+                self._logger.error(error_info)
                 return None
             res = []
             for raw_line in response:
@@ -303,12 +303,12 @@ class Client(object):
                     res.append(line)
             return "\n".join(res)
         except URLError:
-            self.logger.error(MSG_CONNECTION_REFUSED)
+            self._logger.error(MSG_CONNECTION_REFUSED)
         except IncompleteRead as icr:
-            self.logger.error("read incomplete:")
-            self.logger.error(icr.partial)
+            self._logger.error("read incomplete:")
+            self._logger.error(icr.partial)
         except Exception:
-            self.logger.exception("error when connecting to gsql server")
+            self._logger.exception("error when connecting to gsql server")
         finally:
             if response:
                 response.close()
@@ -333,9 +333,9 @@ class Client(object):
             else:
                 raise LoginException("Error while login!")
         except URLError:
-            self.logger.error(MSG_CONNECTION_REFUSED)
+            self._logger.error(MSG_CONNECTION_REFUSED)
         except Exception:
-            self.logger.exception("error when connecting to gsql server")
+            self._logger.exception("error when connecting to gsql server")
         finally:
             if response:
                 response.close()
@@ -362,3 +362,119 @@ class Client(object):
 
     def help(self):
         return self._command_interactive(self.help_url, "help")
+
+
+class RESTPP(object):
+    def __init__(self, server_ip):
+        self._token = ""
+        if ":" in server_ip:
+            self._server_ip = server_ip
+        else:
+            self._server_ip = server_ip + ":9000"
+
+        self._base_url = "http://" + self._server_ip + "/"
+        self._logger = logging.getLogger("gsql_client.RESTPP")
+
+    def _setup_request(self, method, endpoint, parameters, content, headers):
+        url = self._base_url + endpoint
+        if parameters:
+            url += "?" + urlencode(parameters)
+
+        if content:
+            encoded = content.encode("utf-8")
+        else:
+            encoded = None
+
+        if headers:
+            headers = copy.deepcopy(headers)
+
+        headers["Content-Language"] = "en-US"
+
+        if encoded:
+            headers["Content-Length"] = str(len(encoded))
+            headers["Content-Type"] = "application/json"
+
+        headers["Pragma"] = "no-cache"
+
+        if self._token:
+            headers["Authorization"] = "Bearer: {0}".format(self._token)
+
+        _r = Request(url, encoded, headers)
+        _r.method = lambda: method
+        return _r
+
+    def _request(self, method, endpoint, parameters=None, content=None, headers=None):
+        r = self._setup_request(method, endpoint, parameters, content, headers)
+        response = None
+        try:
+            response = urlopen(r)
+            ret_code = response.getcode()
+            if ret_code == 401:
+                self._logger.error("Authentication failed.")
+            if ret_code != 200:
+                error_info = "Response Error! Response Code : " + ret_code + "\n" + response.read().decode("utf-8")
+                self._logger.error(error_info)
+
+            response_text = response.read().decode("utf-8")
+            self._logger.debug(response_text)
+            res = json.loads(response_text)
+
+            if res["error"]:
+                self._logger.error("API error: " + res["message"])
+            elif "results" not in res:
+                return res["message"]
+            else:
+                return res.get["results"]
+        except URLError:
+            self._logger.error(
+                "Error connecting to restpp server! Ensure that the server is running on " + self._server_ip)
+        except IncompleteRead as icr:
+            self._logger.error("Read incomplete:")
+            self._logger.error(icr.partial)
+        except Exception:
+            self._logger.exception("Error processing restpp request!")
+        finally:
+            if response:
+                response.close()
+
+    def _get(self, endpoint, parameters=None, headers=None):
+        return self._request("GET", endpoint, parameters, None, headers)
+
+    def _post(self, endpoint, parameters=None, content=None, headers=None):
+        return self._request("POST", endpoint, parameters, content, headers)
+
+    def _delete(self, endpoint):
+        return self._request("DELETE", endpoint)
+
+    def request_token(self, secret, lifetime=None):
+        parameters = {
+            "secret": secret
+        }
+        if lifetime:
+            parameters["lifetime"] = lifetime
+
+        res = self._get("requesttoken", parameters)
+        if res:
+            self._token = res
+            return True
+        else:
+            return False
+
+    def echo(self):
+        return self._get("echo")
+
+    def load_data(self, job, file_name, lines, timeout=0, graph=None):
+        parameters = {
+            "tag": job,
+            "filename": file_name,
+            "timeout": timeout
+        }
+        if lines:
+            content = "\n".join(lines)
+        else:
+            content = None
+
+        endpoint = "/ddl"
+        if graph:
+            endpoint += "/" + graph
+        return self._post(endpoint, parameters, content)
