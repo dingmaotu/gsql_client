@@ -9,6 +9,9 @@ import sys
 import re
 import io
 import copy
+import base64
+import json
+import logging
 from os import getenv
 from os.path import expanduser, isfile
 
@@ -31,10 +34,6 @@ except ImportError:
     HAS_SSL = False
 else:
     HAS_SSL = True
-
-import base64
-import json
-import logging
 
 
 class LoginException(Exception):
