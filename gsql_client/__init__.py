@@ -17,11 +17,13 @@ if sys.version_info.major == 2:
     from urllib2 import urlopen, Request
     from urllib import urlencode
     from urllib2 import URLError
+    from httplib import IncompleteRead
 else:
     is_legacy = False
     from urllib.request import urlopen, Request
     from urllib.parse import urlencode
     from urllib.error import URLError
+    from http.client import IncompleteRead
 
 try:
     import ssl
@@ -185,6 +187,7 @@ class Client(object):
         headers = copy.deepcopy(headers)
         headers["Content-Language"] = "en-US"
         headers["Content-Length"] = str(len(encoded))
+        headers["Pragma"] = "no-cache"
 
         # default is POST if we have content
         # deafult Content-Type is application/x-www-form-urlencoded
@@ -234,7 +237,7 @@ class Client(object):
         except URLError:
             self.logger.error(MSG_CONNECTION_REFUSED)
         except Exception:
-            self.logger.exception("Unknown error when connecting to gsql server")
+            self.logger.exception("error when connecting to gsql server")
         finally:
             if response:
                 response.close()
@@ -251,7 +254,7 @@ class Client(object):
         except URLError:
             self.logger.error(MSG_CONNECTION_REFUSED)
         except Exception:
-            self.logger.exception("Unknown error when connecting to gsql server")
+            self.logger.exception("error when connecting to gsql server")
         finally:
             if response:
                 response.close()
@@ -302,8 +305,11 @@ class Client(object):
             return "\n".join(res)
         except URLError:
             self.logger.error(MSG_CONNECTION_REFUSED)
+        except IncompleteRead as icr:
+            self.logger.error("read incomplete:")
+            self.logger.error(icr.partial)
         except Exception:
-            self.logger.exception("Unknown error when connecting to gsql server")
+            self.logger.exception("error when connecting to gsql server")
         finally:
             if response:
                 response.close()
@@ -316,7 +322,7 @@ class Client(object):
             ret_code = response.getcode()
             if ret_code == 200:
                 content = response.read()
-                res = json.dumps(content.decode("utf-8"))
+                res = json.loads(content.decode("utf-8"))
 
                 if res.get("error", False):
                     if "Wrong password!" in res.get("message", ""):
@@ -330,7 +336,7 @@ class Client(object):
         except URLError:
             self.logger.error(MSG_CONNECTION_REFUSED)
         except Exception:
-            self.logger.exception("Unknown error when connecting to gsql server")
+            self.logger.exception("error when connecting to gsql server")
         finally:
             if response:
                 response.close()
