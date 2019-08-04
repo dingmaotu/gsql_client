@@ -364,6 +364,10 @@ class Client(object):
         return self._command_interactive(self.help_url, "help")
 
 
+class RESTPPError(Exception):
+    pass
+
+
 class RESTPP(object):
     def __init__(self, server_ip):
         self._token = ""
@@ -387,6 +391,8 @@ class RESTPP(object):
 
         if headers:
             headers = copy.deepcopy(headers)
+        else:
+            headers = {}
 
         headers["Content-Language"] = "en-US"
 
@@ -417,14 +423,18 @@ class RESTPP(object):
 
             response_text = response.read().decode("utf-8")
             self._logger.debug(response_text)
-            res = json.loads(response_text)
+            # non strict mode to allow control characters in string
+            res = json.loads(response_text, strict=False)
 
-            if res["error"]:
+            if "error" not in res:
+                return res
+            elif res["error"] and res["error"] != "false":  # workaround for GET /version result
                 self._logger.error("API error: " + res["message"])
+                raise RESTPPError(res.get("message", ""))
             elif "results" not in res:
                 return res["message"]
             else:
-                return res.get["results"]
+                return res["results"]
         except URLError:
             self._logger.error(
                 "Error connecting to restpp server! Ensure that the server is running on " + self._server_ip)
@@ -463,6 +473,15 @@ class RESTPP(object):
     def echo(self):
         return self._get("echo")
 
+    def version(self):
+        return self._get("version")
+
+    def endpoints(self):
+        return self._get("endpoints")
+
+    def license(self):
+        return self._get("showlicenseinfo")
+
     def load_data(self, job, file_name, lines, timeout=0, graph=None):
         parameters = {
             "tag": job,
@@ -478,3 +497,4 @@ class RESTPP(object):
         if graph:
             endpoint += "/" + graph
         return self._post(endpoint, parameters, content)
+
