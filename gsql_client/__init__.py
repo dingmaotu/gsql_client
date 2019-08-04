@@ -19,13 +19,13 @@ if sys.version_info.major == 2:
     is_legacy = True
     from urllib2 import urlopen, Request
     from urllib import urlencode
-    from urllib2 import URLError
+    from urllib2 import URLError, HTTPError
     from httplib import IncompleteRead
 else:
     is_legacy = False
     from urllib.request import urlopen, Request
     from urllib.parse import urlencode
-    from urllib.error import URLError
+    from urllib.error import URLError, HTTPError
     from http.client import IncompleteRead
 
 try:
@@ -435,8 +435,10 @@ class RESTPP(object):
                 return res["message"]
             else:
                 return res["results"]
+        except HTTPError as http_err:
+            self._logger.error(http_err)
         except URLError:
-            self._logger.error(
+            self._logger.exception(
                 "Error connecting to restpp server! Ensure that the server is running on " + self._server_ip)
         except IncompleteRead as icr:
             self._logger.error("Read incomplete:")
@@ -482,12 +484,23 @@ class RESTPP(object):
     def license(self):
         return self._get("showlicenseinfo")
 
+    def get_vertex_number(self, type_name="*", graph=None):
+        parameters = {
+            "function": "stat_vertex_number",
+            "type": type_name
+        }
+        url = "builtins"
+        if graph:
+            url += "/" + graph
+        return self._post(url, content=json.dumps(parameters))
+
     def load_data(self, job, file_name, lines, timeout=0, graph=None):
         parameters = {
             "tag": job,
             "filename": file_name,
             "timeout": timeout
         }
+
         if lines:
             content = "\n".join(lines)
         else:
