@@ -291,15 +291,15 @@ class Client(object):
                     self._set_cookie(cookie_s)
                 elif line.startswith(PREFIX_CURSOR_UP):
                     values = line.split(",")
-                    print("\033[" + values[1] + "A")
+                    print("\033[" + values[1] + "A", flush=True)
                 elif line.startswith(PREFIX_CLEAN_LINE):
-                    print("\033[2K")
+                    print("\033[2K", flush=True)
                 elif PROGRESS_PATTERN.match(line):
                     if COMPLETE_PATTERN.match(line):
                         line += "\n"
-                    print("\r" + line)
+                    print("\r" + line, flush=True)
                 else:
-                    print(line)
+                    print(line, flush=True)
                     res.append(line)
             return "\n".join(res)
         except URLError:
