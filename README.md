@@ -31,7 +31,7 @@ res = client.command("ls")  # also returns the result
 
 client.command("clear graph store", "y") # needs answer
 
-client.file("yourfile.gsql")
+client.run_file("yourfile.gsql")
 
 client.version()
 
