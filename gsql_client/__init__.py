@@ -278,7 +278,7 @@ class Client(object):
     def _dialog(self, response):
         self._request(self.dialog_url, response)
 
-    def _command_interactive(self, url, content, ans=""):
+    def _command_interactive(self, url, content, ans="", out=False):
         """process response with special return codes"""
 
         def __handle__interactive(reader):
@@ -308,7 +308,8 @@ class Client(object):
                         line += "\n"
                     print("\r" + line)
                 else:
-                    print(line)
+                    if out:
+                        print(line)
                     res.append(line)
             return res
 
