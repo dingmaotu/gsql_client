@@ -17,6 +17,13 @@ actually uses http to interact with GSQL server. So can Python. I already made t
 
 Copy gsql_client folder to your project. I have not write setup.py scripts and put this on PyPI,
  but I am going to.
+ 
+> Note:
+>
+> if you submit large gsql file or long running command, using remote client may receive
+> IncompleteRead exception as TigerGraph nginx service does not properly configure the `proxy_read_timeout`
+> for `/gsqlserver` path. So you may need to edit `{TIGERGRAPH_HOME}/tigergraph/config/nginx/nginx_1.conf`
+> and add this option (like for `/admin/websocket` or `/websocket`).
 
 ## Usage
 
