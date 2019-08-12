@@ -278,7 +278,7 @@ class Client(object):
     def _dialog(self, response):
         self._request(self.dialog_url, response)
 
-    def _command_interactive(self, url, content, ans="", out=False):
+    def _command_interactive(self, url, content, ans="", out=True):
         """process response with special return codes"""
 
         def __handle__interactive(reader):
@@ -349,7 +349,7 @@ class Client(object):
         return self._command_interactive(self.command_url, "use graph {0}".format(graph))
 
     def catalog(self):
-        lines = self._command_interactive(self.command_url, "ls")
+        lines = self._command_interactive(self.command_url, "ls", out=False)
         return _parse_catalog(lines)
 
     def _load_file_recursively(self, file_path):
