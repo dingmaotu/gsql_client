@@ -33,22 +33,27 @@ we can use `python -m gsql_client` just as `java -jar gsql_client.jar`. It is be
 
 ## Usage
 
+It contains mainly 2 classes: gsql_client.Client as a remote GSQL server client and
+gsql_client.RESTPP for directly interact with RESTPP server.
+
 ```python
-from gsql_client import Client
+from gsql_client import Client, RESTPP
 
-client = Client("10.0.0.1")
-
+client = Client("10.0.0.1")  # default port 14240, you can use 10.0.0.1:29383 to specify another port
 client.login()  # returns True for success; exceptions and False for failure
-
 res = client.command("ls")  # also returns the result as a list of lines
-
 client.command("clear graph store", "y") # needs answer
-
 client.run_file("yourfile.gsql")
-
 client.version()
-
 client.help()
-
 client.quit()
+
+restpp = RESTPP("10.0.0.1")  # default port 9000
+
+# no need to login
+# but you can use restpp.requesttoken(secret) to setup token based authentication
+
+# same as type `select * from MyVertex` in gsql shell
+restpp.select_vertices("my_graph", "MyVertex")
+restpp.query("my_graph", "my_query", param1 = 1)  # run your query
 ```
