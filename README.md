@@ -25,6 +25,12 @@ Copy gsql_client folder to your project. I have not written a setup.py script an
 > for `/gsqlserver` path. So you may need to edit `{TIGERGRAPH_HOME}/tigergraph/config/nginx/nginx_1.conf`
 > and add this option (like for `/admin/websocket` or `/websocket`).
 
+## TODO
+
+Maybe I could create a main function to launch an interactive shell (using stdlib cmd module), so that
+we can use `python -m gsql_client` just as `java -jar gsql_client.jar`. It is best to keep them compatible
+(for both command line options and behaviors).
+
 ## Usage
 
 ```python
@@ -34,7 +40,7 @@ client = Client("10.0.0.1")
 
 client.login()  # returns True for success; exceptions and False for failure
 
-res = client.command("ls")  # also returns the result
+res = client.command("ls")  # also returns the result as a list of lines
 
 client.command("clear graph store", "y") # needs answer
 
