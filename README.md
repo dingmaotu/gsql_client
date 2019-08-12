@@ -15,7 +15,7 @@ actually uses http to interact with GSQL server. So can Python. I already made t
  
 ## Installation
 
-Copy gsql_client folder to your project. I have not write setup.py scripts and put this on PyPI,
+Copy gsql_client folder to your project. I have not written a setup.py script and put this on PyPI,
  but I am going to.
  
 > Note:
