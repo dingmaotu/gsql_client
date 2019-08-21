@@ -409,19 +409,19 @@ class RESTPP(object):
         if parameters:
             url += "?" + urlencode(parameters)
 
-        if content:
-            encoded = content.encode("utf-8")
-        else:
-            encoded = None
-
         headers = {
             "Content-Language": "en-US",
-            "Content-Length": str(len(encoded)),
             "Pragma": "no-cache",
             "Cache-Control": "no-cache",
             "Connection": "keep-alive",
             "Content-Type": "application/json"
         }
+
+        if content:
+            encoded = content.encode("utf-8")
+            headers["Content-Length"] = str(len(encoded))
+        else:
+            encoded = None
 
         if self._token:
             headers["Authorization"] = "Bearer: {0}".format(self._token)
