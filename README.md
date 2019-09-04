@@ -15,8 +15,13 @@ actually uses http to interact with GSQL server. So can Python. I already made t
  
 ## Installation
 
-Copy gsql_client folder to your project. It has no external dependency and it is compatible with
- both Python 2 and 3. I have not written a setup.py script and put this on PyPI, but I am going to.
+Copy gsql_client folder to your project or install with pip:
+
+```shell script
+pip install gsql_client
+```
+
+This package has no external dependency and it is compatible with both Python 2 and 3.
  
 > Note:
 >
