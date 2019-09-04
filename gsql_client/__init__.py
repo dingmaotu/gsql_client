@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 
+# for python 2 and 3 compatibility, we import these anyway
 from __future__ import unicode_literals
 from __future__ import print_function
 from __future__ import absolute_import
@@ -14,6 +15,7 @@ import codecs
 from os import getenv
 from os.path import expanduser, isfile
 
+# import http client
 try:
     # noinspection PyCompatibility
     from urllib.parse import quote_plus, urlencode
@@ -24,6 +26,8 @@ except ImportError:
     # noinspection PyCompatibility
     from httplib import HTTPConnection, HTTPSConnection
 
+# import ssl
+# notice that Python might not be compiled with ssl support
 try:
     # noinspection PyUnresolvedReferences
     import ssl
@@ -34,27 +38,44 @@ except ImportError:
 
 
 class AuthenticationFailedException(Exception):
+    """
+    Exception thrown when RESTPP or GSQL client authentication failed
+    """
     pass
 
 
 class RecursiveIncludeException(Exception):
+    """
+    Exception thrown when recursively include an already included source during GSQL import (@file)
+    """
     pass
 
 
 class ReturnCodeException(Exception):
+    """
+    Exception thrown when executing a GSQL file or multiple commands
+
+    Usually, when submitting a file to GSQL Server, if any command is preventing the whole file from executing,
+    an internal code is returned. But if failed commands are not fatal, then it will be fine and no exception is raised.
+    """
     pass
 
 
+# these are interal special codes for interactive use
+# we include them anyway though these are not currently used.
+# we will need them later if an interactive shell is added to this library
 PREFIX_CURSOR_UP = "__GSQL__MOVE__CURSOR___UP__"
 PREFIX_CLEAN_LINE = "__GSQL__CLEAN__LINE__"
 PREFIX_INTERACT = "__GSQL__INTERACT__"
 PREFIX_RET = "__GSQL__RETURN__CODE__"
 PREFIX_COOKIE = "__GSQL__COOKIES__"
 
+# these regex are for matching GSQL Server interactive output
 FILE_PATTERN = re.compile("@[^@]*[^;,]")
 PROGRESS_PATTERN = re.compile("\\[=*\\s*\\]\\s[0-9]+%.*")
 COMPLETE_PATTERN = re.compile("\\[=*\\s*\\]\\s100%[^l]*")
 
+# the following are for parsing `ls` output
 NULL_MODE = 0
 VERTEX_MODE = 1
 EDGE_MODE = 2
@@ -74,22 +95,31 @@ CATALOG_MODES = {
 
 
 def _is_mode_line(line):
+    """
+    `ls` output starts a category with a separate line like `Vertex Types:`, we need to recognize this line
+    to know what follows it.
+    """
     return line.endswith(":")
 
 
 def _get_current_mode(line):
+    """
+    We match the mode string with formal constants. This might change. I hope RESTPP or some formal api spec
+    can be used to get catalog programmatically.
+    """
     return CATALOG_MODES.get(line[:-1], NULL_MODE)
 
 
 def _parse_catalog(lines):
     """
-    parse output of ls
+    parse output of `ls`
     return a dict of:
-        vertices: []
-        edges: []
-        graphs: []
-        jobs: []
-        queries: []
+        vertices: ["VertexType1", ...]
+        edges: ["EdgeType1", ...]
+        graphs: ["Graph1", ...]
+        jobs: ["Job1", ...]
+        queries: ["Query1", ...]
+    No detail is returned. Use this function to get an overview of what is available or if something exists.
     """
     vertices = []
     edges = []
@@ -140,6 +170,9 @@ def _parse_catalog(lines):
 
 
 def get_option(option, default=""):
+    """
+    This function mimics the Java version: read config from a local configuration file
+    """
     cfg_path = expanduser("~/.gsql/gsql.cfg")
     with open(cfg_path, "r") as f:
         for line in f:
@@ -153,12 +186,13 @@ def get_option(option, default=""):
 
 class Client(object):
     """
-    Main class of the client lib
+    Main class of the GSQL client
     """
 
     def __init__(self, server_ip="127.0.0.1", username="tigergraph", password="tigergraph", cacert=""):
         """
         Create a client from remote server ip, username, and password
+        `cacert` is a path to certificates. See Python ssl module documentation for reference.
         """
         self._logger = logging.getLogger("gsql_client.Client")
         self._server_ip = server_ip
@@ -175,24 +209,27 @@ class Client(object):
             self._context = None
             self._protocol = "http"
 
+        # we encode the credential for Basic HTTP authentication
         self.base64_credential = base64.b64encode(
             "{0}:{1}".format(self._username, self._password).encode("utf-8")).decode("utf-8")
 
+        # if server is local or remote; GSQL Server is exposed under different paths for different situations
         self.is_local = server_ip.startswith("127.0.0.1") or server_ip.startswith("localhost")
 
         if self.is_local:
-            self._base_url = "/gsql/"
+            self._base_url = "/gsql/"  # local base url
             if ":" not in server_ip:
                 port = get_option("gsql.server.private_port", "8123")
                 self._server_ip = "{0}:{1}".format(server_ip, port)
-
         else:
-            self._base_url = "/gsqlserver/gsql/"
+            self._base_url = "/gsqlserver/gsql/"  # remote base url; actually an nginx proxy to the local one
             if ":" not in server_ip:
                 self._server_ip = "{0}:{1}".format(server_ip, "14240")
 
+        # create various command urls
         self._initialize_url()
 
+        # cookies (session properties)
         self.graph = ""
         self.session = ""
         self.properties = ""
@@ -212,6 +249,10 @@ class Client(object):
         self.abort_url = self._base_url + "abortloadingprogress"
 
     def _get_cookie(self):
+        """
+        GSQL Client interaction with the server needs proper cookies
+        We especially need TERMINAL_WIDTH for the request to work, though this library is not interactive (for now)
+        """
         cookie = {}
         if self.is_local:
             cookie["CLIENT_PATH"] = expanduser("~")
@@ -232,12 +273,31 @@ class Client(object):
         return json.dumps(cookie, ensure_ascii=True)
 
     def _set_cookie(self, cookie_str):
+        """
+        update session properties
+        """
         cookie = json.loads(cookie_str)
         self.session = cookie.get("session", "")
         self.graph = cookie.get("graph", "")
         self.properties = cookie.get("properties", "")
 
     def _setup_connection(self, url, content, cookie=None, auth=True):
+        """
+        We use HTTPConnection directly instead of urlib or urllib2. It is much cleaner and has all low level options.
+
+        urllib has some limitations. For example, you can not specify HTTP request method.
+        If you use Ruquest object and set Request.method = lambda x: "POST", then PySpark will have problem serialize
+        the method. Since this library are used with PySpark (for parallel actions for each partition), urllib is really
+        not acceptable.
+
+        We also don't want to introduce third party dependencies. So requests and urllib3 are not used.
+
+        :param url: url of the request
+        :param content: for POST content, a string, and it will be formatted as utf-8 url encoded
+        :param cookie: dict of cookie values, will be merged with the default one
+        :param auth: authorization token; you can override the default Basic authentication
+        :return: a HTTP(S)Connection object
+        """
         if self._protocol == "https":
             conn = HTTPSConnection(self._server_ip, context=self._context)
         else:
@@ -259,6 +319,22 @@ class Client(object):
         return conn
 
     def _request(self, url, content, handler=None, cookie=None, auth=True):
+        """
+        This is the method used for all requests to the GSQL Server.
+
+        It actually does 3 things:
+            1. call _setup_connection
+            2. check authentication failure
+            3. convert the result to text stream for handler or directly return the response as text
+
+        :param url: see `_setup_connection` parameter `url`
+        :param content: see `_setup_connection` parameter `content`
+        :param handler: a function that handle the response as text stream; if not specified,
+                        the whole content will be utf-8 decoded and returned
+        :param cookie: see `_setup_connection` parameter `cookie`
+        :param auth: see `_setup_connection` parameter `auth`
+        :return: handler result if specified or response as utf-8 decoded text
+        """
         response = None
         try:
             r = self._setup_connection(url, content, cookie, auth)
@@ -276,12 +352,25 @@ class Client(object):
                 response.close()
 
     def _dialog(self, response):
+        """
+        Call dialog url.
+        This is used for interactive command that needs user input (thus need a second request to complete).
+        The input is send to the dialog url to complete the command.
+
+        :param response the use response as text
+        :return dialog response as text
+        """
         self._request(self.dialog_url, response)
 
     def _command_interactive(self, url, content, ans="", out=True):
-        """process response with special return codes"""
+        """
+        process response with special return codes. This is main workhorse for various one line commands.
+        """
 
         def __handle__interactive(reader):
+            """
+            This function handles special interacive features. It mimics the Java version.
+            """
             res = []
             for line in reader:
                 line = line.strip()
@@ -316,6 +405,12 @@ class Client(object):
         return self._request(url, content, __handle__interactive)
 
     def login(self):
+        """
+        Login to the GSQL Server. You can a unique session number for each login.
+
+        The login method put the authentication string in the post content instead of request header, so it needs its
+        own logic instead of reusing self._request
+        """
         response = None
         try:
             r = self._setup_connection(self.login_url, self.base64_credential, auth=False)
@@ -336,26 +431,49 @@ class Client(object):
                 response.close()
 
     def get_auto_keys(self):
+        """
+        This method is called right after login in the interactive shell scenario for auto completing.
+        Not used here (for now).
+        """
         keys = self._request(self.info_url, "autokeys", cookie=self.session)
         return keys.split(",")
 
     def quit(self):
+        """
+        quit current session
+        """
         self._request(self.abort_url, "abortloadingprogress")
 
     def command(self, content, ans=""):
+        """
+        send a single command to GSQL Server. If the command need furthur user input, you can specify directly in `ans`
+        parameter and it will can self.dialog for you
+        """
         return self._command_interactive(self.command_url, content, ans)
 
     def use(self, graph):
+        """
+        change current graph; self.graph session property will be changed if successful.
+        """
         return self._command_interactive(self.command_url, "use graph {0}".format(graph))
 
     def catalog(self):
+        """
+        show and parse the output of `ls` command
+        """
         lines = self._command_interactive(self.command_url, "ls", out=False)
         return _parse_catalog(lines)
 
     def _load_file_recursively(self, file_path):
+        """
+        load a GSQL file recursively (handle @file import)
+        """
         return self._read_file(file_path, set())
 
     def _read_file(self, file_path, loaded):
+        """
+        read a GSQL file. `loaded` is the already loaded (included) files.
+        """
         if not file_path or not isfile(file_path):
             self._logger.warn("File \"" + file_path + "\" does not exist!")
             return ""
@@ -377,25 +495,53 @@ class Client(object):
         return res
 
     def run_file(self, path):
+        """
+        load the file at `path`, and submit the content to file_url
+        """
         content = self._load_file_recursively(path)
         return self._command_interactive(self.file_url, content)
 
     def run_multiple(self, lines):
+        """
+        directly submit multiple commands to file_url (just like running a file)
+        """
         return self._command_interactive(self.file_url, "\n".join(lines))
 
     def version(self):
+        """
+        show version string; can be used for debugging
+        """
         return self._command_interactive(self.version_url, "version")
 
     def help(self):
+        """
+        show help string; can be used for debugging.
+
+        this help is actually for Java version of gsql client. So it is basically no use here.
+        """
         return self._command_interactive(self.help_url, "help")
 
 
 class RESTPPError(Exception):
+    """
+    RESTPP server specific error.
+
+    All other errors (including http connection errors) are raised directly. User need to handle them if they wanted.
+    """
     pass
 
 
 class RESTPP(object):
+    """
+    RESTPP is the TigerGraph RESTful API server. It is well documented and the following code are based on
+    the official documentation.
+    """
+
     def __init__(self, server_ip):
+        """
+        Initialize the client. Mainly record the IP (and port) of the server
+        :param server_ip: can be 127.0.0.1 or 127.0.0.1:8983 for another port
+        """
         self._token = ""
         if ":" in server_ip:
             self._server_ip = server_ip
@@ -405,6 +551,14 @@ class RESTPP(object):
         self._logger = logging.getLogger("gsql_client.RESTPP")
 
     def _setup_connection(self, method, endpoint, parameters, content):
+        """
+        RESTPP follow RESTful API general guidelines.
+        :param method: method can be "GET"/"POST"/"DELETE" based on specific endpoint requirements
+        :param endpoint: the url of the request
+        :param parameters: dict of parameters appending to the url
+        :param content: POST contents (usually json string)
+        :return: HTTPConnection object
+        """
         url = endpoint
         if parameters:
             url += "?" + urlencode(parameters)
@@ -431,6 +585,12 @@ class RESTPP(object):
         return conn
 
     def _request(self, method, endpoint, parameters=None, content=None):
+        """
+        This is the method used for all endpoint specific methods. It mainly does the following:
+          1. check authentication failure
+          2. convert the result to json
+          3. check the json result for error code and message
+        """
         response = None
         try:
             r = self._setup_connection(method, endpoint, parameters, content)
@@ -443,6 +603,7 @@ class RESTPP(object):
             # non strict mode to allow control characters in string
             res = json.loads(response_text, strict=False)
 
+            # notice that result is not consistent, we need to handle them differently
             if "error" not in res:
                 return res
             elif res["error"] and res["error"] != "false":  # workaround for GET /version result
@@ -466,6 +627,12 @@ class RESTPP(object):
         return self._request("DELETE", endpoint, parameters, None)
 
     def request_token(self, secret, lifetime=None):
+        """
+        Get an OAuth2 like token for later use.
+        :param secret: generated by GSQL client
+        :param lifetime: life time of the token in seconds
+        :return: True if successfully updated internal token and otherwise False
+        """
         parameters = {
             "secret": secret
         }
@@ -480,18 +647,39 @@ class RESTPP(object):
             return False
 
     def echo(self):
+        """
+        echo hello from TigerGraph RESTPP server; for debugging
+        """
         return self._get("/echo")
 
     def version(self):
+        """
+        show versions of various components of the TigerGraph system
+        """
         return self._get("/version")
 
     def endpoints(self):
+        """
+        show all supported endpoints and their parameters (see official documentation for detail)
+        """
         return self._get("/endpoints")
 
     def license(self):
+        """
+        show license info; currently returns an error (not useful)
+        """
         return self._get("/showlicenseinfo")
 
     def stat(self, graph, **kwargs):
+        """
+        used for calling stat functions. (see official documentation for detail)
+
+        commonly used stat functions are separate methods:
+          1. stat_vertex_number
+          2. stat_edge_number
+          3. stat_vertex_attr
+          4. stat_edge_attr
+        """
         url = "/builtins/" + graph
         return self._post(url, content=json.dumps(kwargs, ensure_ascii=True))
 
@@ -572,7 +760,7 @@ class RESTPP(object):
         load data to graph
 
         graph: graph name
-        lines: list of json string
+        lines: list of json string/csv lines
 
         required:
             tag: load job name
@@ -599,4 +787,7 @@ class RESTPP(object):
         return self._post("/graph/" + graph, content=json.dumps(content, ensure_ascii=True))
 
     def query(self, graph, query_name, **kwargs):
+        """
+        run a specific query
+        """
         return self._get("/{0}/{1}".format(graph, query_name), kwargs)
