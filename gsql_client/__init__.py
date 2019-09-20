@@ -184,12 +184,22 @@ def get_option(option, default=""):
     return default
 
 
+# since 2.4.0, TigerGraph Client uses a commitClient cookie parameter for login to verify compatibility
+# we track https://github.com/tigergraph/ecosys/clients/com/tigergraph/ to update this mapping
+VERSION_COMMIT = {
+    "v2_4_0": "f6b4892ad3be8e805d49ffd05ee2bc7e7be10dff",
+    "v2_4_1": "47229e675f792374d4525afe6ea10898decc2e44",
+    "v2_5_0": "bc49e20553e9e68212652f6c565cb96c068fab9e"
+}
+
+
 class Client(object):
     """
     Main class of the GSQL client
     """
 
-    def __init__(self, server_ip="127.0.0.1", username="tigergraph", password="tigergraph", cacert=""):
+    def __init__(self, server_ip="127.0.0.1", username="tigergraph", password="tigergraph", cacert="",
+                 version="", commit=""):
         """
         Create a client from remote server ip, username, and password
         `cacert` is a path to certificates. See Python ssl module documentation for reference.
@@ -198,6 +208,20 @@ class Client(object):
         self._server_ip = server_ip
         self._username = username
         self._password = password
+
+        if commit:
+            self._client_commit = commit
+        elif version in VERSION_COMMIT:
+            self._client_commit = VERSION_COMMIT[version]
+        else:
+            self._client_commit = ""
+
+        self._version = version
+
+        if self._version and self._version >= "v2_3_0":
+            self._abort_name = "abortclientsession"
+        else:
+            self._abort_name = "abortloadingprogress"
 
         if cacert and HAS_SSL:
             self._context = ssl.SSLContext(ssl.PROTOCOL_SSLv23)
@@ -246,7 +270,7 @@ class Client(object):
         self.dialog_url = self._base_url + "dialog"
 
         self.info_url = self._base_url + "getinfo"
-        self.abort_url = self._base_url + "abortloadingprogress"
+        self.abort_url = self._base_url + self._abort_name
 
     def _get_cookie(self):
         """
@@ -269,6 +293,9 @@ class Client(object):
 
         if self.properties:
             cookie["properties"] = self.properties
+
+        if self._client_commit:
+            cookie["clientCommit"] = self._client_commit
 
         return json.dumps(cookie, ensure_ascii=True)
 
@@ -420,9 +447,19 @@ class Client(object):
                 content = response.read()
                 res = json.loads(content.decode("utf-8"))
 
+                if "License expired" in res.get("message", ""):
+                    raise Exception("TigerGraph Server License is expired! Please update your license!")
+
+                compatible = res.get("isClientCompatible", True)
+                if not compatible:
+                    raise Exception("This client is not compatible with target TigerGraph Server!"
+                                    " Please specify a correct version when creating this client!")
+
                 if res.get("error", False):
                     if "Wrong password!" in res.get("message", ""):
                         raise AuthenticationFailedException("Invalid Username/Password!")
+                    else:
+                        raise Exception("Login failed!")
                 else:
                     self.session = response.getheader("Set-Cookie")
                     return True
@@ -442,7 +479,7 @@ class Client(object):
         """
         quit current session
         """
-        self._request(self.abort_url, "abortloadingprogress")
+        self._request(self.abort_url, self._abort_name)
 
     def command(self, content, ans=""):
         """
