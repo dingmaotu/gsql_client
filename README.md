@@ -8,10 +8,9 @@ If you are using TigerGraph, you probably know that there are only one way to re
  right?
 
 So here we are: a Python version of gsql_client, removing all interactive features. gsql_client.jar
-actually uses http to interact with GSQL server. So can Python. I already made the suggestion to
- TigerGraph that they should open up the protocol between GSQL server and gsql_client.jar, so that
- others can create clients in whatever language they like. This will foster a much better
- developer community.
+actually uses http to interact with GSQL server. So can Python. TigerGraph already open sourced their
+[client implementation](https://github.com/tigergraph/ecosys/tree/master/clients/com/tigergraph), but only
+for versions later than 2.3.0. I originally wrote this for 2.2.3, so there are minor differences.
  
 ## Installation
 
@@ -44,7 +43,14 @@ gsql_client.RESTPP for directly interact with RESTPP server.
 ```python
 from gsql_client import Client, RESTPP
 
-client = Client("10.0.0.1")  # default port 14240, you can use 10.0.0.1:29383 to specify another port
+# default port 14240, you can use 10.0.0.1:29383 to specify another port
+client = Client("10.0.0.1")
+# for versions later than 2.4.0, it is mandatory to specify the version like this:
+client = Client("10.0.0.1", version="v2_4_0")
+# or the login would fail with incompatible server/client version
+# you can directly specify the commit hash of the client (used for compatibility check) by:
+client = Client("10.0.0.1", version="v2_6_0", commit="somehexhashstring")
+
 client.login()  # returns True for success; exceptions and False for failure
 res = client.command("ls")  # also returns the result as a list of lines
 client.command("clear graph store", "y") # needs answer
