@@ -295,7 +295,7 @@ class Client(object):
             cookie["properties"] = self.properties
 
         if self._client_commit:
-            cookie["clientCommit"] = self._client_commit
+            cookie["commitClient"] = self._client_commit
 
         return json.dumps(cookie, ensure_ascii=True)
 
