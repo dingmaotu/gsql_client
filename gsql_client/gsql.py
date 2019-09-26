@@ -16,6 +16,7 @@ import base64
 import json
 import logging
 import codecs
+import datetime
 from os import getenv
 from os.path import expanduser, isfile
 
@@ -56,6 +57,7 @@ PREFIX_COOKIE = "__GSQL__COOKIES__"
 FILE_PATTERN = re.compile("@[^@]*[^;,]")
 PROGRESS_PATTERN = re.compile("\\[=*\\s*\\]\\s[0-9]+%.*")
 COMPLETE_PATTERN = re.compile("\\[=*\\s*\\]\\s100%[^l]*")
+TOKEN_PATTERN = re.compile("- Token: ([^ ]+) expire at: (.+)")
 
 # the following are for parsing `ls` output
 NULL_MODE = 0
@@ -165,6 +167,16 @@ def _parse_secrets(lines):
             secrets[current]["alias"] = line[len("- Alias: "):]
         elif line.startswith("- GraphName: "):
             secrets[current]["graph"] = line[len("- GraphName: "):]
+        elif line.startswith("- Token: "):
+            # - Token: o85qkcn5i08a393m3pt4k4h2o1ipr38g expire at: 2019-10-26 07:43:29
+            m = TOKEN_PATTERN.match(line)
+            if m:
+                token, expire = m.groups()
+                expire_datetime = datetime.datetime.strptime(expire, "%Y-%m-%d %H:%M:%S")
+                if "tokens" not in secrets[current]:
+                    secrets[current]["tokens"] = []
+                secrets[current]["tokens"].append((token, expire_datetime))
+
     return secrets
 
 
@@ -509,6 +521,15 @@ class Client(object):
         lines = self._command_interactive(self.command_url, "ls", out=False)
         return _parse_catalog(lines)
 
+    def get_secrets(self, graph_name):
+        """
+        get all secrets for a graph `graph_name`
+        """
+        if self.graph != graph_name:
+            self.use(graph_name)
+        lines = self.command("show secret")
+        return _parse_secrets(lines)
+
     def get_secret(self, graph_name, create_alias=None):
         """
         get a secret to access authentication enabled RESTPP
@@ -516,10 +537,7 @@ class Client(object):
         :param create_alias: if no such secret, whould you like to create one?
         :return: one secret or None
         """
-        if self.graph != graph_name:
-            self.use(graph_name)
-        lines = self.command("show secret")
-        secrets = _parse_secrets(lines)
+        secrets = self.get_secrets(graph_name)
         s = _secret_for_graph(secrets, graph_name)
         if s:
             return s
