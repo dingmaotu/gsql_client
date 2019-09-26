@@ -72,7 +72,7 @@ class RESTPP(object):
             encoded = None
 
         if self._token:
-            headers["Authorization"] = "Bearer: {0}".format(self._token)
+            headers["Authorization"] = "Bearer {0}".format(self._token)
 
         conn = HTTPConnection(self._server_ip)
         conn.request(method, url, encoded, headers)
