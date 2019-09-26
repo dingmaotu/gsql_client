@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="gsql_client",
-    version="0.1.1",
+    version="0.1.2",
     author="Ding Li",
     author_email="dingmaotu@hotmail.com",
     description="GSQL and RESTPP Python remote clients for TigerGraph",

@@ -62,7 +62,13 @@ client.quit()
 restpp = RESTPP("10.0.0.1")  # default port 9000
 
 # no need to login
-# but you can use restpp.requesttoken(secret) to setup token based authentication
+# but you can use restpp.requesttoken(secret) to setup token based authentication:
+secret = client.get_secret("my_graph", create_alias="my_graph_query_secret")
+
+# use=True for directly using the requested token
+token = restpp.request_token(secret, use=True)
+# or with set_token
+restpp.set_token(token)
 
 # same as type `select * from MyVertex` in gsql shell
 restpp.select_vertices("my_graph", "MyVertex")
