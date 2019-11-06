@@ -10,10 +10,28 @@ try:
     from urllib.parse import quote_plus, urlencode
     # noinspection PyCompatibility
     from http.client import HTTPConnection, HTTPSConnection
+
+
+    def native_str(s):
+        return s
+
+
+    def is_str(s):
+        return isinstance(s, str)
+
 except ImportError:
     from urllib import quote_plus, urlencode
     # noinspection PyCompatibility
     from httplib import HTTPConnection, HTTPSConnection
+
+
+    def native_str(s):
+        if isinstance(s, unicode):
+            return s.encode("utf-8")
+
+
+    def is_str(s):
+        return isinstance(s, (str, unicode))
 
 # import ssl
 # notice that Python might not be compiled with ssl support

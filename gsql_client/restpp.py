@@ -5,7 +5,6 @@ RESTPP Client
 """
 
 # for python 2 and 3 compatibility, we import these anyway
-from __future__ import unicode_literals
 from __future__ import print_function
 from __future__ import absolute_import
 from __future__ import division
@@ -13,7 +12,7 @@ from __future__ import division
 import json
 import logging
 
-from .common import HTTPConnection, urlencode, AuthenticationFailedException
+from .common import HTTPConnection, urlencode, AuthenticationFailedException, native_str, is_str
 
 
 class RESTPPError(Exception):
@@ -37,6 +36,8 @@ class RESTPP(object):
         :param server_ip: can be 127.0.0.1 or 127.0.0.1:8983 for another port
         """
         self._token = ""
+        server_ip = native_str(server_ip)
+
         if ":" in server_ip:
             self._server_ip = server_ip
         else:
@@ -53,9 +54,9 @@ class RESTPP(object):
         :param content: POST contents (usually json string)
         :return: HTTPConnection object
         """
-        url = endpoint
+        url = native_str(endpoint)
         if parameters:
-            url += "?" + urlencode(parameters)
+            url += "?" + urlencode(native_str(parameters))
 
         headers = {
             "Content-Language": "en-US",
@@ -128,7 +129,7 @@ class RESTPP(object):
         """
         set token to use for authentication
         """
-        self._token = token
+        self._token = native_str(token)
 
     def request_token(self, secret, lifetime=None, use=False):
         """
@@ -145,7 +146,8 @@ class RESTPP(object):
             parameters["lifetime"] = lifetime
 
         res = self._get("/requesttoken", parameters)
-        if isinstance(res, (str, unicode)):
+        if is_str(res):
+            res = native_str(res)
             if use:
                 self._token = res
             return res
