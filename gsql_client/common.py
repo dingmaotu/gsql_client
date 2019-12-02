@@ -28,6 +28,8 @@ except ImportError:
     def native_str(s):
         if isinstance(s, unicode):
             return s.encode("utf-8")
+        else:  # str or other: native str does not handle non string types
+            return s
 
 
     def is_str(s):

@@ -56,7 +56,9 @@ class RESTPP(object):
         """
         url = native_str(endpoint)
         if parameters:
-            url += "?" + urlencode(native_str(parameters))
+            param_str = native_str(urlencode(parameters))
+            if param_str:  # not None nor Empty
+                url += "?" + param_str
 
         headers = {
             "Content-Language": "en-US",
