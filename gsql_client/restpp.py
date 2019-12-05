@@ -246,7 +246,7 @@ class RESTPP(object):
         endpoint = "/graph/{0}/vertices/{1}".format(graph, vertex_type)
         if vertex_id:
             endpoint += "/" + vertex_id
-        return self._get(endpoint, kwargs)
+        return self._delete(endpoint, kwargs)
 
     def delete_edges(self, graph, src_type, src_id, edge_type="_", dst_type=None, dst_id=None, **kwargs):
         """
