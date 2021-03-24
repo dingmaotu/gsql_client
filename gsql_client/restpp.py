@@ -95,7 +95,7 @@ class RESTPP(object):
             ret_code = response.status
             if ret_code == 401:
                 raise AuthenticationFailedException("Invalid token!")
-            response_text = response.read().decode("utf-8")
+            response_text = response.read().decode("utf-8", errors='ignore')
             self._logger.debug(response_text)
             # non strict mode to allow control characters in string
             res = json.loads(response_text, strict=False)
