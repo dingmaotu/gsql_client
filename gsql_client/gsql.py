@@ -255,7 +255,7 @@ class Client(object):
 
         # we encode the credential for Basic HTTP authentication
         self.base64_credential = base64.b64encode(
-            "{0}:{1}".format(self._username, self._password).encode("utf-8")).decode("utf-8")
+            "{0}:{1}".format(self._username, self._password).encode("utf-8")).decode("utf-8", errors='ignore')
 
         # if server is local or remote; GSQL Server is exposed under different paths for different situations
         self.is_local = server_ip.startswith("127.0.0.1") or server_ip.startswith("localhost")
@@ -328,7 +328,7 @@ class Client(object):
         self.graph = cookie.get("graph", "")
         self.properties = cookie.get("properties", "")
 
-    def _setup_connection(self, url, content, cookie=None, auth=True):
+    def _setup_connection(self, url, content, cookie=None, auth=True, need_quote=True):
         """
         We use HTTPConnection directly instead of urlib or urllib2. It is much cleaner and has all low level options.
 
@@ -349,7 +349,10 @@ class Client(object):
             conn = HTTPSConnection(self._server_ip, context=self._context)
         else:
             conn = HTTPConnection(self._server_ip)
-        encoded = quote_plus(content.encode("utf-8"))
+        if need_quote:
+            encoded = quote_plus(content.encode("utf-8"))
+        else:
+            encoded = content.encode("utf-8")
         headers = {
             "Content-Language": "en-US",
             "Content-Length": str(len(encoded)),
@@ -393,7 +396,7 @@ class Client(object):
                 reader = codecs.getreader("utf-8")(response)
                 return handler(reader)
             else:
-                return response.read().decode("utf-8")
+                return response.read().decode("utf-8", errors='ignore')
         finally:
             if response:
                 response.close()
@@ -460,12 +463,12 @@ class Client(object):
         """
         response = None
         try:
-            r = self._setup_connection(self.login_url, self.base64_credential, auth=False)
+            r = self._setup_connection(self.login_url, self.base64_credential, auth=False, need_quote=False)
             response = r.getresponse()
             ret_code = response.status
             if ret_code == 200:
                 content = response.read()
-                res = json.loads(content.decode("utf-8"))
+                res = json.loads(content.decode("utf-8", errors='ignore'))
 
                 if "License expired" in res.get("message", ""):
                     raise Exception("TigerGraph Server License is expired! Please update your license!")
@@ -680,7 +683,7 @@ class RESTPP(object):
             ret_code = response.status
             if ret_code == 401:
                 raise AuthenticationFailedException("Invalid token!")
-            response_text = response.read().decode("utf-8")
+            response_text = response.read().decode("utf-8", errors='ignore')
             self._logger.debug(response_text)
             # non strict mode to allow control characters in string
             res = json.loads(response_text, strict=False)
